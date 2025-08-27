@@ -1,37 +1,39 @@
-import express from 'express';
-import * as dotenv from 'dotenv';
-import { Configuration, OpenAIApi } from 'openai';
+import express from "express";
+import * as dotenv from "dotenv";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 dotenv.config();
 
 const router = express.Router();
 
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
+// Khởi tạo Gemini với API key từ .env
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// Model text → image của Gemini
+// Hiện tại Gemini chỉ có model "gemini-1.5-flash" (text), muốn sinh ảnh thì dùng "imagen-3" hoặc "imagen-2" (trong Image Generation API).
+// Tạm thời mình viết logic text để bạn test API chạy trước.
+
+router.route("/").get((req, res) => {
+  res.status(200).json({ message: "Hello from Gemini!" });
 });
 
-const openai = new OpenAIApi(configuration);
-
-router.route('/').get((req, res) => {
-  res.status(200).json({ message: 'Hello from DALL-E!' });
-});
-
-router.route('/').post(async (req, res) => {
+router.route("/").post(async (req, res) => {
   try {
     const { prompt } = req.body;
 
-    const aiResponse = await openai.createImage({
-      prompt,
-      n: 1,
-      size: '1024x1024',
-      response_format: 'b64_json',
-    });
+    // Gọi model text trước (sinh văn bản từ prompt)
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    const image = aiResponse.data.data[0].b64_json;
-    res.status(200).json({ photo: image });
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    res.status(200).json({ output: text });
   } catch (error) {
     console.error(error);
-    res.status(500).send(error?.response.data.error.message || 'Something went wrong');
+    res
+      .status(500)
+      .send(error?.message || "Something went wrong with Gemini API");
   }
 });
 
